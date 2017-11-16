@@ -1,0 +1,30 @@
+{
+  "name": "data-explorer-jchou8",
+  "version": "0.1.0",
+  "private": true,
+  "homepage": "https://info343b-a17.github.io/data-explorer-jchou8/",
+  "dependencies": {
+    "bootstrap": "^4.0.0-beta.2",
+    "gh-pages": "^1.0.0",
+    "jquery": "^3.2.1",
+    "moment": "^2.19.2",
+    "react": "^16.1.0",
+    "react-a11y": "^1.0.0",
+    "react-dom": "^16.1.0",
+    "react-icons": "^2.2.7",
+    "react-scripts": "1.0.17",
+    "react-widgets": "^4.1.1",
+    "react-widgets-moment": "^4.0.4",
+    "reactstrap": "^5.0.0-alpha.3",
+    "recharts": "^1.0.0-beta.1",
+    "whatwg-fetch": "^2.0.3"
+  },
+  "scripts": {
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d build",
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test --env=jsdom",
+    "eject": "react-scripts eject"
+  }
+}
