@@ -38,7 +38,7 @@ class App extends Component {
         year: year,
         type: newType
       }
-    }
+    };
 
     // Update state
     this.setState(newState, () => {
@@ -48,10 +48,10 @@ class App extends Component {
         DataModel.fetchMonthData(year, month).then((data) => {
           console.log('Fetched ' + data.length + ' rows.');
           let newState = { data: data };
-          this.setState(newState, () => { console.log('Loaded rows.') });
+          this.setState(newState, () => { console.log('Loaded rows.'); });
         });
-      };
-    })
+      }
+    });
   }
 
   render() {
@@ -60,11 +60,11 @@ class App extends Component {
 
     let whatToDisplay;
     if (_.isEmpty(this.state.filters)) { // Need to select a month and date
-      whatToDisplay = <Alert color="info">Select a month to get started!</Alert>
+      whatToDisplay = <Alert color="info">Select a month to get started!</Alert>;
     } else if (this.state.data === undefined) { // Currently fetching/processing data
-      whatToDisplay = <Progress animated value="100">Fetching data...</Progress>
+      whatToDisplay = <Progress animated value="100">Fetching data...</Progress>;
     } else { // Data fully processed, display table
-      whatToDisplay = <DataTable data={this.state.data} filters={this.state.filters} />
+      whatToDisplay = <DataTable data={this.state.data} filters={this.state.filters} />;
     }
 
     return (
@@ -188,7 +188,7 @@ class DataTable extends Component {
       }
 
       let reverse = newState.sortDir === 'asc' ? 1 : -1;
-      newState.data = this.state.data.sort((a, b) => sortFn(a, b, reverse))
+      newState.data = this.state.data.sort((a, b) => sortFn(a, b, reverse));
       this.setState(newState);
     }
   }

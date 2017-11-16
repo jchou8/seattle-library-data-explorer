@@ -13,10 +13,10 @@ function fetchData(options) {
         }
     })
         .then((response) => {
-            return response.json()
+            return response.json();
         }).catch((error) => {
             console.log(error);
-        })
+        });
 }
 
 // Fetch data from a year and month
