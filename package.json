@@ -7,6 +7,7 @@
     "jquery": "^3.2.1",
     "moment": "^2.19.2",
     "react": "^16.1.0",
+    "react-a11y": "^1.0.0",
     "react-dom": "^16.1.0",
     "react-icons": "^2.2.7",
     "react-scripts": "1.0.17",

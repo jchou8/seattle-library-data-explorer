@@ -1,5 +1,5 @@
 # Data Explorer
 
-This repository contains code for a React app allowing the user to interactively explore a data set, created for the [Client-Side Web Development](https://canvas.uw.edu/courses/1118282) course at the UW iSchool.
+This React app allows the user to interactively explore data on checkouts from Seattle public libraries between April 2005 and now. This project was bootstrapped with Create React App.
 
-The site can be viewed at <https://info343b-a17.github.io/data-browser-yourusername/>
+The site can be viewed at <https://info343b-a17.github.io/data-browser-jchou8/>

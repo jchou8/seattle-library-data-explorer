@@ -1,10 +1,12 @@
 import React, { Component } from 'react';
 import 'whatwg-fetch';
-import { Table, Form, FormGroup, Label, Input, Row, Col, Progress, Collapse, Badge, Alert } from 'reactstrap';
+import { Button, Table, Form, FormGroup, Label, Input, Row, Col, Progress, Collapse, Badge, Alert } from 'reactstrap';
 import { DateTimePicker } from 'react-widgets';
 import _ from 'lodash';
 import { FaSort, FaSortAsc, FaSortDesc } from 'react-icons/lib/fa';
-import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine, ResponsiveContainer } from 'recharts';
+
+import * as DataModel from './DataModel';
 
 // App that contains all page content
 class App extends Component {
@@ -13,37 +15,57 @@ class App extends Component {
     super(props);
 
     // Initialize state
-    let initDate = new Date();
     this.state = {
       data: undefined,
       filteredData: undefined,
-      filters: {
-        title: '',
-        subject: '',
-        creator: '',
-        publisher: '',
-        month: initDate.getMonth() + 1,
-        year: initDate.getFullYear()
-      }
+      filters: {}
     };
   }
 
-  updateFilters(title, subject, creator, publisher, date) {
+  // Update data filters
+  updateFilters(title, subject, creator, publisher, date, type) {
+    let month = date.getMonth() + 1;
+    let year = date.getFullYear();
+    let dateChanged = this.state.filters.month !== month || this.state.filters.year !== year;
+    let newType = dateChanged ? 'All' : type;
     let newState = {
       filters: {
         title: title,
         subject: subject,
         creator: creator,
         publisher: publisher,
-        month: date.getMonth() + 1,
-        year: date.getFullYear()
+        month: month,
+        year: year,
+        type: newType
       }
     }
-    this.setState(newState);
+
+    // Update state
+    this.setState(newState, () => {
+      // If date changed, new data needs to be fetched
+      if (dateChanged) {
+        this.setState({ data: undefined });
+        DataModel.fetchMonthData(year, month).then((data) => {
+          console.log('Fetched ' + data.length + ' rows.');
+          let newState = { data: data };
+          this.setState(newState, () => { console.log('Loaded rows.') });
+        });
+      };
+    })
   }
 
   render() {
+    // Types of media available in this set
     let checkoutTypes = Object.keys(_.groupBy(this.state.data, 'materialtype'));
+
+    let whatToDisplay;
+    if (_.isEmpty(this.state.filters)) { // Need to select a month and date
+      whatToDisplay = <Alert color="info">Select a month to get started!</Alert>
+    } else if (this.state.data === undefined) { // Currently fetching/processing data
+      whatToDisplay = <Progress animated value="100">Fetching data...</Progress>
+    } else { // Data fully processed, display table
+      whatToDisplay = <DataTable data={this.state.data} filters={this.state.filters} />
+    }
 
     return (
       <div className='container'>
@@ -54,16 +76,7 @@ class App extends Component {
         <main>
           <Row>
             <Col xs="9">
-
-              { // Show progress bar if data has not yet fully loaded
-                this.state.data === undefined &&
-                <Progress animated value="100">Fetching data...</Progress>
-              }
-
-              { // If data is loaded, display table of data
-                this.state.data !== undefined &&
-                <DataTable data={this.state.data} filters={this.state.filters} />
-              }
+              {whatToDisplay}
             </Col>
 
             <Col xs="3">
@@ -78,32 +91,12 @@ class App extends Component {
         </main>
 
         <footer>
-          Data from <a href='https://data.seattle.gov/Community/Checkouts-by-Title/tmmm-ytt6'>https://data.seattle.gov/Community/Checkouts-by-Title/tmmm-ytt6</a>.
+          <p>Data from <a href='https://data.seattle.gov/Community/Checkouts-by-Title/tmmm-ytt6'>https://data.seattle.gov/Community/Checkouts-by-Title/tmmm-ytt6</a>.</p>
+
+          <p>Only items which have been checked out at least 50 times are retrieved.</p>
         </footer>
       </div>
     );
-  }
-
-  componentDidMount() {
-    // Fetch data
-    fetch('https://data.seattle.gov/resource/tjb6-zsmc.json?$limit=30000&$where=checkouts > 40', {
-      headers: {
-        'X-App-Token': 'ovTAeUgEKNOZ1ScysPB7ZLJbo'
-      }
-    })
-      .then((response) => {
-        return response.json()
-      })
-      .then((data) => {
-        // Successfully fetched; update app state
-        console.log('Fetched ' + data.length + ' rows.');
-        console.log(data);
-        let newState = { data: data };
-        this.setState(newState);
-      })
-      .catch((error) => {
-        console.log(error);
-      })
   }
 }
 
@@ -117,71 +110,21 @@ class DataTable extends Component {
     this.state = {
       sortCol: '',
       sortDir: 'desc',
-      sortedData: this.props.data
+      data: this.props.data,
+      filters: this.props.filters
     };
   }
 
+  // Initial filtering
+  componentDidMount() {
+    this.filterData();
+  }
+
   render() {
-    // Create a table entry for each item
-    let filters = this.props.filters;
-    let data = [];
-
-    this.state.sortedData.forEach((row, i) => {
-      // Apply filters
-      if (
-        // Match month and year
-        parseInt(row.checkoutmonth, 10) !== filters.month ||
-        parseInt(row.checkoutyear, 10) !== filters.year ||
-
-        // Match fields with search queries
-        (row.title && row.title.toLowerCase().indexOf(filters.title) === -1) ||
-        (row.subjects && row.subjects.toLowerCase().indexOf(filters.subject) === -1) ||
-        (row.creator && row.creator.toLowerCase().indexOf(filters.creator) === -1) ||
-        (row.publisher && row.publisher.toLowerCase().indexOf(filters.publisher) === -1) ||
-
-        // Exclude results if user makes a search but that item doesn't have that field
-        (!row.subjects && filters.subject !== '') ||
-        (!row.creator && filters.creator !== '') ||
-        (!row.publisher && filters.publisher !== '')) {
-        return;
-      }
-
-      // Create popularity chart
-      let lineChart = undefined;
-      let popularity = [];
-      this.props.data.forEach((otherRow) => {
-        if (row.title === otherRow.title) {
-          popularity.push({ "Month": otherRow.checkoutyear + '/' + otherRow.checkoutmonth, "Checkouts": parseInt(otherRow.checkouts, 10) });
-        }
-      });
-      if (popularity.length > 1) {
-        popularity = popularity.sort((a, b) => {
-          let yearA = a.Month.substring(0, 4);
-          let yearB = b.Month.substring(0, 4);
-          if (yearA < yearB) {
-            return -1;
-          } else if (yearA > yearB) {
-            return 1;
-          } else {
-            let monthA = parseInt(a.Month.substring(5), 10);
-            let monthB = parseInt(b.Month.substring(5), 10);
-            return monthA - monthB;
-          }
-        });
-        
-        console.log(popularity)
-        lineChart = (<LineChart width={400} height={200} data={popularity} margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
-          <Line type="monotone" dataKey="Checkouts" stroke="#8884d8" dot={false} />
-          <XAxis dataKey="Month" label="Month" />
-          <YAxis label="Checkouts" />
-          <Tooltip />
-          <CartesianGrid strokeDasharray="3 3" />
-        </LineChart>)
-      }
-
-      // Add row
+    // Create a row for each data entry
+    let data = this.state.data.map((row, i) => {
       let key = row.checkoutmonth + '-' + row.checkoutyear + '-' + row.title + '-' + i;
-      data.push(<TableRow key={key} data={row} chart={lineChart} />);
+      return <TableRow key={key} data={row} fullData={this.props.data} />;
     });
 
     return (
@@ -207,67 +150,54 @@ class DataTable extends Component {
     )
   }
 
-  sortData(col) {
-    let newState = { sortDir: this.state.sortDir, sortCol: col };
-
-    if (this.state.sortCol === col) {
-      newState.sortDir = this.state.sortDir === 'asc' ? 'desc' : 'asc';
+  // If filters changed, re-filter the data
+  componentWillReceiveProps(nextProps) {
+    if (nextProps.filters !== this.state.filters) {
+      this.setState({ filters: nextProps.filters }, () => this.filterData());
     }
-
-    let sortFn;
-    if (col === 'Type') {
-      sortFn = (a, b) => this.sortByType(a, b, reverse);
-    } else if (col === 'Title') {
-      sortFn = (a, b) => this.sortByTitle(a, b, reverse);
-    } else {
-      sortFn = (a, b) => this.sortByCheckouts(a, b, reverse);
-    }
-
-    let reverse = newState.sortDir === 'asc' ? 1 : -1;
-    newState.sortedData = this.state.sortedData.sort(sortFn)
-    this.setState(newState);
   }
 
-  sortByCheckouts(a, b, reverse) {
-    let diff = parseInt(a.checkouts, 10) - parseInt(b.checkouts, 10);
-    if (diff === 0) {
-      diff = a.title > b.title ? 1 : -1;
-    }
+  // Filter the data based on table's current filters
+  filterData() {
+    let filters = this.state.filters;
+    let filteredData = DataModel.filterRow(this.props.data, filters);
 
-    return diff * reverse;
+    // Update data and re-sort
+    this.setState({ data: filteredData }, () => this.sortData(this.state.sortCol, true));
   }
 
-  sortByType(a, b, reverse) {
-    let diff = 0;
-    if (a.materialtype < b.materialtype) {
-      diff = -1;
-    } else if (a.materialtype > b.materialtype) {
-      diff = 1;
-    } else {
-      diff = this.sortByCheckouts(a, b, -reverse);
+  // Sort data based on column
+  sortData(col, dontSwitch) {
+    // Don't sort if no column has been selected
+    if (col !== '') {
+      let newState = { sortDir: this.state.sortDir, sortCol: col };
+
+      // Change sort direction if same column is clicked multiple times
+      if (this.state.sortCol === col && !dontSwitch) {
+        newState.sortDir = this.state.sortDir === 'asc' ? 'desc' : 'asc';
+      }
+
+      // Different sorting method depending on column
+      let sortFn;
+      if (col === 'Type') {
+        sortFn = DataModel.sortByType;
+      } else if (col === 'Title') {
+        sortFn = DataModel.sortByTitle;
+      } else {
+        sortFn = DataModel.sortByCheckouts;
+      }
+
+      let reverse = newState.sortDir === 'asc' ? 1 : -1;
+      newState.data = this.state.data.sort((a, b) => sortFn(a, b, reverse))
+      this.setState(newState);
     }
-
-    return diff * reverse;
-  }
-
-  sortByTitle(a, b, reverse) {
-    let diff = 0;
-    if (a.title < b.title) {
-      diff = -1;
-    } else if (a.title > b.title) {
-      diff = 1;
-    } else {
-      diff = this.sortByCheckouts(a, b, -reverse);
-    }
-
-    return diff * reverse;
   }
 }
 
 // Header row for the data table
 class TableHeader extends Component {
   render() {
-    let headers = this.props.cols.map((colName) => {
+    let headers = this.props.cols.map((colName, i) => {
       // Set icon to indicate current sort method
       let icon;
       if (colName === this.props.sortCol) {
@@ -281,14 +211,18 @@ class TableHeader extends Component {
       }
 
       return (
-        <th
-          key={colName}
-          onClick={() => { this.props.sortCallback(colName) }}
-          style={{ "cursor": "pointer" }}>
-          <span style={{ "whiteSpace": "nowrap" }}>
-            {colName}
-            {icon}
-          </span>
+        <th key={colName}>
+          <Button outline size="sm" color="secondary"
+            onClick={() => { this.props.sortCallback(colName) }}
+            tabIndex={i + 1}
+            style={{
+              "cursor": "pointer",
+            }}>
+            <span style={{ "whiteSpace": "nowrap" }}>
+              {colName}
+              {icon}
+            </span>
+          </Button>
         </th>
       );
     });
@@ -309,7 +243,37 @@ class TableRow extends Component {
 
   constructor(props) {
     super(props);
-    this.state = { collapse: false };
+
+    // Initialize state
+    this.state = {
+      collapse: false,
+      chart: undefined
+    };
+  }
+
+  // Create a line chart of a work's checkouts over time
+  renderChart() {
+    // Don't re-render if it's already been made!
+    if (this.state.chart === undefined) {
+      let row = this.props.data;
+      DataModel.checkoutsOverTime(row.title)
+        .then((popularity) => {
+          let lineChart = (
+            <ResponsiveContainer width="100%" height={200}>
+              <LineChart data={popularity}>
+                <Line type="monotone" dataKey="Checkouts" stroke="#8884d8" dot={false} />
+                <XAxis dataKey="Month" />
+                <YAxis />
+                <Tooltip />
+                <CartesianGrid strokeDasharray="3 3" />
+                <ReferenceLine x={row.checkoutyear + '/' + row.checkoutmonth} stroke="green" />
+              </LineChart>
+            </ResponsiveContainer>
+          )
+
+          this.setState({ chart: lineChart });
+        });
+    }
   }
 
   render() {
@@ -325,7 +289,13 @@ class TableRow extends Component {
 
     return (
       <tbody>
-        <tr onClick={() => { this.toggle() }} style={{ "cursor": "pointer" }}>
+        <tr
+          onClick={() => { this.toggle() }}
+          onKeyUp={(event) => { this.handleKeyUp(event) }}
+          style={{ "cursor": "pointer" }}
+          role="button"
+          tabIndex={10}
+        >
           <td>{data.materialtype}</td>
           <td>{data.checkouts}</td>
           <td>{data.title}</td>
@@ -333,8 +303,15 @@ class TableRow extends Component {
 
         <tr className="row-details">
           <td colSpan="12" style={{ "borderTop": 0, "padding": 0 }}>
-            <Collapse isOpen={this.state.collapse} style={{ "padding": "1rem" }}>
-              {this.props.chart}
+            <Collapse
+              isOpen={this.state.collapse}
+              style={{ "padding": "1rem" }}
+              onEntering={() => this.renderChart()}>
+              {this.state.chart === undefined &&
+                <Progress animated value="100" color="info">Building chart...</Progress>
+              }
+
+              {this.state.chart}
 
               {tags !== undefined &&
                 <Row>
@@ -370,9 +347,17 @@ class TableRow extends Component {
     )
   }
 
+  // Toggle the collapsed state of the detail row
   toggle() {
     let newState = { collapse: !this.state.collapse };
     this.setState(newState);
+  }
+
+  // If the user presses enter, toggle the row details
+  handleKeyUp(event) {
+    if (event.key === "Enter") {
+      this.toggle();
+    }
   }
 }
 
@@ -381,76 +366,93 @@ class Options extends Component {
 
   constructor(props) {
     super(props);
+
+    // Initialize state
     this.state = {
-      date: new Date(),
+      date: undefined,
       title: '',
       subject: '',
       creator: '',
-      publisher: ''
+      publisher: '',
+      type: ''
     }
   }
 
   render() {
-    let typeCheckboxes = this.props.types.map((type) => {
-      return (
-        <FormGroup check key={type}>
-          <Label check>
-            <Input type="checkbox" name="type" defaultChecked />{' ' + type}
-          </Label>
-        </FormGroup>
-      )
+    // Add options for type filtering
+    let typeSelect = this.props.types.map((type) => {
+      return <option key={type}>{type}</option>;
     });
 
+    // Add search boxes
     let searchForms = ['Title', 'Subject', 'Creator', 'Publisher'];
     let searchFormGroups = searchForms.map((field) => {
+      let disabled = this.state.date === undefined;
       return (
         <FormGroup key={field}>
           <Label for={field}>{field}</Label>
-          <Input name={field} id={field} placeholder="Search..."
-            onChange={(e) => this.handleFormChange(e)} />
+          <Input name={field} id={field} placeholder="Search..." disabled={disabled} tabIndex="5"
+            onBlur={(e) => this.handleFormChange(e)} />
         </FormGroup>
       )
     });
 
-    return (
+    // Set calendar bounds
+    let maxDate = new Date();
+    maxDate.setMonth(maxDate.getMonth() - 1);
+    let minDate = new Date(2005, 4, 1);
 
+    return (
       <Form>
+        <h2>Filters</h2>
         <FormGroup>
           <Label for="date">Month and Year</Label>
           <DateTimePicker
             name="date"
             value={this.state.date}
             onChange={(value) => this.handleDateChange(value)}
-
+            tabIndex="4"
+  
             format={'MMM YYYY'}
             time={false}
             footer={false}
-            max={new Date()}
-            min={new Date(2005, 4, 1)}
+            max={maxDate}
+            min={minDate}
             views={['year', 'decade']}
           />
         </FormGroup>
 
         {searchFormGroups}
 
-        <FormGroup>
-          <Label for="type">Type</Label>
-          {typeCheckboxes}
-        </FormGroup>
+        {typeSelect.length > 0 &&
+          <FormGroup>
+            <Label for="typeSelect">Type</Label>
+            <Input type="select" name="type" id="typeSelect" tabIndex="6"
+              onChange={(e) => this.handleFormChange(e)}>
+              <option>All</option>
+              {typeSelect}
+            </Input>
+          </FormGroup>
+        }
       </Form>
     )
   }
 
   // Update state when forms are updated
   handleFormChange(event) {
-    let newState = {};
-    newState[event.target.name.toLowerCase()] = event.target.value;
-    this.setState(newState, () => { this.updateFilters() });
+    let target = event.target.name.toLowerCase();
+    let value = event.target.value;
+
+    if (this.state[target] !== value) {
+      let newState = {};
+      newState[target] = value;
+      this.setState(newState, () => { this.updateFilters() });
+    }
   }
 
   // Update date if new valid date is picked
   handleDateChange(value) {
-    if (value !== null) {
+    if (value !== null && value !== this.state.date) {
       let newState = { date: value };
       this.setState(newState, () => { this.updateFilters() });
     }
@@ -458,7 +460,7 @@ class Options extends Component {
 
   // Send the filters up to the app
   updateFilters() {
-    this.props.filterCallback(this.state.title, this.state.subject, this.state.creator, this.state.publisher, this.state.date);
+    this.props.filterCallback(this.state.title, this.state.subject, this.state.creator, this.state.publisher, this.state.date, this.state.type);
   }
 }
 
