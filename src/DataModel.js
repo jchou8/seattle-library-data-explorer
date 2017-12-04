@@ -43,10 +43,10 @@ export function filterRow(rows, filters) {
             parseInt(row.checkoutyear, 10) !== filters.year ||
 
             // Match fields with search queries
-            (row.title && row.title.toLowerCase().indexOf(filters.title) === -1) ||
-            (row.subjects && row.subjects.toLowerCase().indexOf(filters.subject) === -1) ||
-            (row.creator && row.creator.toLowerCase().indexOf(filters.creator) === -1) ||
-            (row.publisher && row.publisher.toLowerCase().indexOf(filters.publisher) === -1) ||
+            (row.title && row.title.toLowerCase().indexOf(filters.title.toLowerCase()) === -1) ||
+            (row.subjects && row.subjects.toLowerCase().indexOf(filters.subject.toLowerCase()) === -1) ||
+            (row.creator && row.creator.toLowerCase().indexOf(filters.creator.toLowerCase()) === -1) ||
+            (row.publisher && row.publisher.toLowerCase().indexOf(filters.publisher.toLowerCase()) === -1) ||
             (filters.type && filters.type !== 'All' && row.materialtype !== filters.type) ||
 
             // Exclude results if user makes a search but that item doesn't have that field

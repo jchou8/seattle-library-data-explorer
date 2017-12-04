@@ -2,7 +2,7 @@
   "name": "data-explorer-jchou8",
   "version": "0.1.0",
   "private": true,
-  "homepage": "https://info343b-a17.github.io/data-explorer-jchou8/",
+  "homepage": "https://jchou8.github.io/seattle-library-data-explorer/",
   "dependencies": {
     "bootstrap": "^4.0.0-beta.2",
     "gh-pages": "^1.0.0",
